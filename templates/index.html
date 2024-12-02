@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prueba de Corte</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            line-height: 1.6;
+            background-color: #f8f9fa;
+        }
+
+        h1, h2 {
+            color: #333;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        #form-container {
+            margin: 0 auto;
+            max-width: 90%;
+            padding: 20px;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .button-container {
+            margin-top: 20px;
+        }
+
+        .custom-file-label {
+            display: inline-block;
+            margin-bottom: 10px;
+            cursor: pointer;
+            background-color: #007bff;
+            color: #fff;
+            padding: 10px 20px;
+            border-radius: 5px;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        img {
+            width: 100%;
+            max-width: 400px;
+            margin-top: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+
+        canvas {
+            margin: 20px auto;
+            display: block;
+            max-width: 100%;
+            height: auto !important;
+        }
+
+        #interpretation {
+            margin-top: 20px;
+            text-align: left;
+            font-size: 0.95rem;
+            color: #555;
+        }
+
+        button {
+            background-color: #28a745;
+            color: #fff;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        button:hover {
+            background-color: #218838;
+        }
+
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+
+        @media (max-width: 768px) {
+            h1, h2 {
+                font-size: 1.5rem;
+            }
+
+            .custom-file-label, button {
+                padding: 8px 16px;
+                font-size: 0.9rem;
+            }
+
+            #form-container {
+                padding: 10px;
+            }
+
+            #interpretation {
+                font-size: 0.9rem;
+            }
+        }
+
+        @media (max-width: 480px) {
+            h1, h2 {
+                font-size: 1.2rem;
+            }
+
+            .custom-file-label, button {
+                padding: 6px 12px;
+                font-size: 0.8rem;
+            }
+
+            canvas {
+                width: 100% !important;
+                height: auto !important;
+            }
+        }
+
+        footer {
+            background-color: #d6d6d6; /* Gris claro */
+            color: black;
+            padding: 10px 0;
+            text-align: center;
+            margin-top: 20px;
+            width: 98%; /* Reducir el ancho en 1cm */
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        footer img {
+            width: 80px;
+            margin-bottom: 10px;
+        }
+
+        footer p {
+            margin: 0;
+        }
+
+        footer small {
+            display: block;
+            font-size: 0.8rem;
+        }
+    </style>
+</head>
+<body>
+    <h1>Prueba de Corte</h1>
+    <div id="form-container">
+        <h2>Selecciona un archivo para analizar:</h2>
+        <form id="uploadForm" enctype="multipart/form-data">
+            <div class="button-container">
+                <label class="custom-file-label" for="fileInput">Seleccionar Archivo</label>
+                <input type="file" name="file" id="fileInput" required>
+            </div>
+            <div class="button-container">
+                <button type="submit">Procesar</button>
+            </div>
+        </form>
+        <img id="imagePreview" src="" alt="Vista previa" style="display:none;">
+        <canvas id="classChart"></canvas>
+        <canvas id="pieChart"></canvas>
+        <div id="interpretation"></div>
+        <div class="button-container">
+            <button id="downloadResults" style="display:none;">Descargar resultados</button>
+        </div>
+    </div>
+
+    <footer>
+        <div style="display: flex; justify-content: center; align-items: center; gap: 20px;">
+            <img src="static/images/sena_logo.png" alt="Logo sena" style="width: 80px; height: auto;">
+            <img src="static/images/unicauca_logo.png" alt="Logo unicauca" style="width: 80px; height: auto;">
+        </div>
+        <p>Centro Agropecuario Regional Cauca</p>
+        <small>&copy; 2024 - Todos los derechos reservados.</small>
+    </footer>
+
+    <script>
+        const fileInput = document.getElementById("fileInput");
+        const imagePreview = document.getElementById("imagePreview");
+        const uploadForm = document.getElementById("uploadForm");
+        const classChartCtx = document.getElementById("classChart").getContext("2d");
+        const pieChartCtx = document.getElementById("pieChart").getContext("2d");
+        const interpretationDiv = document.getElementById("interpretation");
+        const downloadButton = document.getElementById("downloadResults");
+
+        let classChart, pieChart, resultsData;
+
+        fileInput.addEventListener("change", (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    imagePreview.src = event.target.result;
+                    imagePreview.style.display = "block";
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        uploadForm.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const formData = new FormData(uploadForm);
+            try {
+                const response = await fetch("/", {
+                    method: "POST",
+                    body: formData,
+                });
+                const data = await response.json();
+                if (data.image) {
+                    imagePreview.src = `data:image/jpeg;base64,${data.image}`;
+                    updateCharts(data.class_counts);
+                    resultsData = data;
+                    downloadButton.style.display = "block";
+                } else {
+                    alert("Error procesando la imagen.");
+                }
+            } catch (error) {
+                alert("Error en la solicitud: " + error.message);
+            }
+        });
+
+        function updateCharts(classCounts) {
+            const swappedClassCounts = {
+                GBF: classCounts.GBF || 0,
+                GIF: classCounts.GIF || 0,
+                GSF: classCounts.GSF || 0
+            };
+
+            const labels = Object.keys(swappedClassCounts);
+            const counts = Object.values(swappedClassCounts);
+            const totalGranos = counts.reduce((sum, count) => sum + count, 0);
+
+            const colors = {
+                GBF: "rgba(0, 128, 0, 0.8)",
+                GIF: "rgba(255, 255, 0, 0.8)",
+                GSF: "rgba(255, 0, 0, 0.8)"
+            };
+
+            const backgroundColors = labels.map(label => colors[label] || 'rgba(255, 255, 255, 0.8)');
+
+            if (classChart) classChart.destroy();
+            classChart = new Chart(classChartCtx, {
+                type: "bar",
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: "Análisis Estadístico de la Prueba de Corte",
+                        data: counts,
+                        backgroundColor: backgroundColors,
+                    }]
+                },
+                options: {
+                    animation: { duration: 2000 },
+                    scales: {
+                        y: { beginAtZero: true }
+                    }
+                }
+            });
+
+            if (pieChart) pieChart.destroy();
+            pieChart = new Chart(pieChartCtx, {
+                type: "pie",
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: counts,
+                        backgroundColor: backgroundColors
+                    }]
+                },
+                options: {
+                    animation: { duration: 2000 },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function (tooltipItem) {
+                                    const percentage = ((tooltipItem.raw / totalGranos) * 100).toFixed(2);
+                                    return `${tooltipItem.label}: ${tooltipItem.raw} granos (${percentage}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            const interpretation = `
+                <h3>Resultados</h3>
+                <ul>
+                    <li>Grano Bien Fermentado (GBF): ${swappedClassCounts.GBF} granos</li>
+                    <li>Grano Insuficientemente Fermentado (GIF): ${swappedClassCounts.GIF} granos</li>
+                    <li>Grano Sin Fermentar (GSF): ${swappedClassCounts.GSF} granos</li>
+                </ul>
+            `;
+            interpretationDiv.innerHTML = interpretation;
+        }
+
+        downloadButton.addEventListener("click", () => {
+            const currentDate = new Date();
+            const formattedDate = currentDate.toLocaleString();
+            const content = `
+            Resultados de la Prueba de Corte:
+            ---------------------------------
+            Fecha y hora: ${formattedDate}
+            Grano Bien Fermentado (GBF): ${resultsData.class_counts.GBF || 0} granos
+            Grano Insuficientemente Fermentado (GIF): ${resultsData.class_counts.GIF || 0} granos
+            Grano Sin Fermentar (GSF): ${resultsData.class_counts.GSF || 0} granos
+            `;
+            const blob = new Blob([content], { type: "text/plain" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "resultados_prueba_corte.txt";
+            a.click();
+        });
+    </script>
+</body>
+</html>
+
